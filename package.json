@@ -1,8 +1,11 @@
 {
   "name": "mundo",
   "version": "1.0.0",
-  "description": "",
-  "main": "getMundo.js",
+  "description": "Garena LOL Event Mundo API",
+  "main": "index.js",
+  "engines": {
+    "node": "14.x"
+  },
   "scripts": {
     "start": "node index.js"
   },
