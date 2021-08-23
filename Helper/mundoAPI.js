@@ -132,7 +132,7 @@ module.exports = class MundoAPI {
         await this.setMundoProfile();
 
         this.#MundoDice_Interval = setInterval(async () => {
-            await this.#doFreeDice();
+            await this.activeMundoFreeDice();
             await this.setMundoFreeDice().catch(() => { });
         }, this.#MundoDice_Profile.free_remain_time * 1000);
 
@@ -154,8 +154,13 @@ module.exports = class MundoAPI {
         this.TokenLogs.push(`Date: ${new Date().toISOString()} | Result: DICE-STOP`);
     }
 
-    async #doFreeDice() {
-        return await getMundoDice()
+    async activeMundoFreeDice() {
+        if (this.#MundoDice_ErrorCount > 3) {
+            this.clearMundoFreeDice();
+            return false;
+        }
+        else {
+            return await getMundoDice()
             .then(r => {
                 this.TokenLogs.push(`Date: ${new Date().toISOString()} | Result: DICE-OK`);
                 this.#MundoDice_ErrorCount = 0;
@@ -166,5 +171,6 @@ module.exports = class MundoAPI {
                 this.#MundoDice_ErrorCount++;
                 return false;
             });
+        }
     }
 }
