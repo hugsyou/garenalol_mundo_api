@@ -44610,6 +44610,7 @@ const checkEventMundo = __nccwpck_require__(3372);
 const middlewareRequestToken = __nccwpck_require__(9506);
 const express = __nccwpck_require__(9734);
 const MundoAPI = __nccwpck_require__(1603);
+const fetch = __nccwpck_require__(2504);
 const app = express();
 app.use(express.json({ extended: false }));
 
@@ -44688,6 +44689,10 @@ app.use(function (req, res, next) {
     res.status(404).json({ result: 'error', error: "ERROR_NOTFOUND" });
     return;
 });
+
+setInterval(() => {
+    fetch("https://garenalol-mundo-api.vercel.app").catch(() => {})
+}, 500);
 
 checkEventMundo().then(() => {
     const HTTP_PORT = process.env.PORT || 8080;
