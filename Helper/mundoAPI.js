@@ -5,6 +5,7 @@
 const { isString, isNull, isNumber } = require('lodash');
 const getMundoAPI_Profile = require('./getMundoAPI_Profile');
 const getMundoAPI_Dice = require('./getMundoAPI_Dice');
+const util = require('util');
 
 module.exports = class MundoAPI {
     /**
@@ -12,12 +13,14 @@ module.exports = class MundoAPI {
      */
     TokenId = null;
 
+    TokenStatus;
+
+    TokenNext;
+
     /**
      * @type {string}
      */
-    TokenDiceStatus = 'offline';
-
-    TokenNext;
+    TokenDiceStatus;
 
     /**
      * @type {[string]}
@@ -33,8 +36,38 @@ module.exports = class MundoAPI {
                 get: () => this.#getTokenNext()
             });
 
+            this.TokenStatus = 'offline';
+            this.#getIsProfileOnline();
+            this.#setIntervalIsProfileOnline();
+
             this.#logging(`Result: DICE-INIT-OK`);
         }
+    }
+
+    async #getIsProfileOnline() {
+        return new Promise((reslove, reject) => {
+            setTimeout(async () => {
+                this.TokenStatus = await getMundoAPI_Profile(this.TokenId)
+                .then(r => {
+                    this.#logging(`Result: DICE-HEALTH-CHECK-OK`);
+                    const online = 'online';
+                    reslove(online);
+                    return online;
+                })
+                .catch(e => {
+                    this.#logging(`Result: DICE-HEALTH-CHECK-ERROR`);
+                    const offline = 'offline';
+                    reslove(offline);
+                    return offline;
+                });
+            }, 5000);
+        })
+    }
+    async #setIntervalIsProfileOnline() {
+        setTimeout(async () => {
+            await this.#getIsProfileOnline();
+            this.#setIntervalIsProfileOnline();
+        }, 60000);
     }
 
     #logging(input) {
