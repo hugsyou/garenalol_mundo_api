@@ -15,7 +15,7 @@ module.exports = class MundoAPI {
     /**
      * @type {string}
      */
-    TokenStatus = 'offline';
+    TokenDiceStatus = 'offline';
 
     TokenNext;
 
@@ -152,7 +152,7 @@ module.exports = class MundoAPI {
                     await doDice();
                 }, this.#TokenProfile.free_remain_time * 1000);
             }
-            TokenStatus = 'online';
+            this.TokenDiceStatus = 'online';
             this.#logging(`Result: DICE-CREATE-DODICE-OK`);
         }
         else {
@@ -165,7 +165,7 @@ module.exports = class MundoAPI {
         }
         this.#IntervalTokenDice = null;
         this.#IntervalTokenDice_Retry = 0;
-        TokenStatus = 'offline';
+        this.TokenDiceStatus = 'offline';
         this.#logging(`Result: DICE-REMOVE-DODICE-OK`);
     }
 }
