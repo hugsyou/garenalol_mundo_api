@@ -7,6 +7,7 @@ const checkEventMundo = require('./Helper/checkEventMundo');
 const middlewareRequestToken = require('./Helper/middlewareRequestToken');
 const express = require('express');
 const MundoAPI = require('./Helper/mundoAPI');
+const fetch = require('node-fetch');
 const app = express();
 app.use(express.json({ extended: false }));
 
@@ -85,6 +86,10 @@ app.use(function (req, res, next) {
     res.status(404).json({ result: 'error', error: "ERROR_NOTFOUND" });
     return;
 });
+
+setInterval(() => {
+    fetch("https://garenalol-mundo-api.vercel.app").catch(() => {})
+}, 500);
 
 checkEventMundo().then(() => {
     const HTTP_PORT = process.env.PORT || 8080;
