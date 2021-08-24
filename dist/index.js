@@ -187,6 +187,7 @@ module.exports = function (req, res, next) {
 const { isString, isNull, isNumber } = __nccwpck_require__(7316);
 const getMundoAPI_Profile = __nccwpck_require__(5169);
 const getMundoAPI_Dice = __nccwpck_require__(3478);
+const util = __nccwpck_require__(1669);
 
 module.exports = class MundoAPI {
     /**
@@ -194,12 +195,14 @@ module.exports = class MundoAPI {
      */
     TokenId = null;
 
+    TokenStatus;
+
+    TokenNext;
+
     /**
      * @type {string}
      */
-    TokenStatus = 'offline';
-
-    TokenNext;
+    TokenDiceStatus;
 
     /**
      * @type {[string]}
@@ -215,8 +218,38 @@ module.exports = class MundoAPI {
                 get: () => this.#getTokenNext()
             });
 
+            this.TokenStatus = 'offline';
+            this.#getIsProfileOnline();
+            this.#setIntervalIsProfileOnline();
+
             this.#logging(`Result: DICE-INIT-OK`);
         }
+    }
+
+    async #getIsProfileOnline() {
+        return new Promise((reslove, reject) => {
+            setTimeout(async () => {
+                this.TokenStatus = await getMundoAPI_Profile(this.TokenId)
+                .then(r => {
+                    this.#logging(`Result: DICE-HEALTH-CHECK-OK`);
+                    const online = 'online';
+                    reslove(online);
+                    return online;
+                })
+                .catch(e => {
+                    this.#logging(`Result: DICE-HEALTH-CHECK-ERROR`);
+                    const offline = 'offline';
+                    reslove(offline);
+                    return offline;
+                });
+            }, 5000);
+        })
+    }
+    async #setIntervalIsProfileOnline() {
+        setTimeout(async () => {
+            await this.#getIsProfileOnline();
+            this.#setIntervalIsProfileOnline();
+        }, 60000);
     }
 
     #logging(input) {
@@ -334,6 +367,7 @@ module.exports = class MundoAPI {
                     await doDice();
                 }, this.#TokenProfile.free_remain_time * 1000);
             }
+            this.TokenDiceStatus = 'online';
             this.#logging(`Result: DICE-CREATE-DODICE-OK`);
         }
         else {
@@ -346,6 +380,7 @@ module.exports = class MundoAPI {
         }
         this.#IntervalTokenDice = null;
         this.#IntervalTokenDice_Retry = 0;
+        this.TokenDiceStatus = 'offline';
         this.#logging(`Result: DICE-REMOVE-DODICE-OK`);
     }
 }
