@@ -1,4 +1,4 @@
-const { isString } = require('lodash');
+const { isString, isNumber } = require('lodash');
 const fetch = require('node-fetch');
 
 module.exports = async function (Token) {
@@ -19,22 +19,22 @@ module.exports = async function (Token) {
         garenaLOLHeader.append("Sso-Token", Token);
         garenaLOLHeader.append("Token", Token);
         garenaLOLHeader.append("Utm-Source", "plt");
-        garenaLOLHeader.append("Content-Type", "application/json");
-
-        const raw = JSON.stringify({
-            "cost": 0,
-            "draw_type": 0
-        });
 
         const requestOptions = {
-            method: 'POST',
+            method: 'GET',
             headers: garenaLOLHeader,
-            body: raw,
             redirect: 'follow'
         };
 
-        await fetch("https://smallpass.lol.garena.in.th/api/draw", requestOptions);
+        /**
+         * @type {import("../Types/mundoAPI_Profile.type").MundoAPI_ProfileResponse}
+         */
+        const Response = await fetch("https://smallpass.lol.garena.in.th/api/profile", requestOptions).then(async (response) => await response.json());
 
-        return true;
+        if (!Response) { throw Error(`getMundoAPI_Profile: can not GET`); }
+        else if (!isNumber(Response.free_remain_time)) { throw Error(`getMundoAPI_Profile: can not GET <free_remain_time>`); }
+        else {
+            return Response;
+        }
     }
 };

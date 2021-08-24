@@ -22,11 +22,10 @@ app.get('/create',
     middlewareRequestToken,
     async function (req, res) {
         try {
-            const { token, start } = req.query;
-            if (SessionMundo.filter(where => (where.TokenId === token)).length === 0) {
+            const { token } = req.query;
+            if (SessionMundo.findIndex(where => (where.TokenId === token)) === -1) {
                 const reqMundo = new MundoAPI(token);
-                await reqMundo.setMundoProfile();
-                if (start === 'true') { await reqMundo.setMundoFreeDice(); }
+                await reqMundo.createTokenDice();
                 SessionMundo.push(reqMundo);
                 res.status(201).json({ result: 'ok', token: token, status: 'created' });
                 return;
@@ -47,57 +46,13 @@ app.get('/status',
     middlewareRequestToken,
     function (req, res) {
         const { token } = req.query;
-        const findResult = SessionMundo.filter(where => (where.TokenId === token));
-        if (findResult.length === 0) {
+        const findResult = SessionMundo.findIndex(where => (where.TokenId === token));
+        if (findResult === -1) {
             res.status(200).json({ result: 'error', error: "ERROR_TOKEN_NOTFOUND" });
             return;
         }
         else {
-            res.status(200).json(SessionMundo[0]).end();
-            return;
-        }
-    }
-);
-
-app.get('/start',
-    middlewareRequestToken,
-    async function (req, res) {
-        try {
-            const { token } = req.query;
-            const findResult = SessionMundo.filter(where => (where.TokenId === token));
-            if (findResult.length === 0) {
-                res.status(200).json({ result: 'error', error: "ERROR_TOKEN_NOTFOUND" });
-                return;
-            }
-            else {
-                await SessionMundo[0].setMundoFreeDice();
-                res.status(200).json({ result: 'ok', token: token, status: 'started' }).end();
-                return;
-            }
-        } catch (error) {
-            res.status(422).json({ result: 'error', error: 'ERROR_UNPROCESSENTITY' });
-            return;
-        }
-    }
-);
-
-app.get('/stop',
-    middlewareRequestToken,
-    function (req, res) {
-        try {
-            const { token } = req.query;
-            const findResult = SessionMundo.filter(where => (where.TokenId === token));
-            if (findResult.length === 0) {
-                res.status(200).json({ result: 'error', error: "ERROR_TOKEN_NOTFOUND" });
-                return;
-            }
-            else {
-                SessionMundo[0].clearMundoFreeDice();
-                res.status(200).json({ result: 'ok', token: token, status: 'stoped' }).end();
-                return;
-            }
-        } catch (error) {
-            res.status(422).json({ result: 'error', error: 'ERROR_UNPROCESSENTITY' });
+            res.status(200).json(SessionMundo[findResult]).end();
             return;
         }
     }
@@ -114,7 +69,7 @@ app.get('/delete',
                 return;
             }
             else {
-                SessionMundo[findResult].clearMundoFreeDice();
+                SessionMundo[findResult].createTokenDice();
                 SessionMundo.splice(findResult, 1);
                 res.status(200).json({ result: 'ok', token: token, status: 'deleted' }).end();
                 return;

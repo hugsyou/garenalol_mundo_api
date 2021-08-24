@@ -52,10 +52,10 @@ module.exports = async function () {
 
 /***/ }),
 
-/***/ 8718:
+/***/ 3478:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-const { isString } = __nccwpck_require__(7316);
+const { isString, isNumber } = __nccwpck_require__(7316);
 const fetch = __nccwpck_require__(2504);
 
 module.exports = async function (Token) {
@@ -90,18 +90,24 @@ module.exports = async function (Token) {
             redirect: 'follow'
         };
 
-        await fetch("https://smallpass.lol.garena.in.th/api/draw", requestOptions);
-
-        return true;
+        /**
+         * @type {import('../Types/mundoAPI_Dice.type').MundoAPI_DiceResponse}
+         */
+        const Response = await fetch("https://smallpass.lol.garena.in.th/api/draw", requestOptions).then(async (response) => await response.json());
+        if (!Response) { throw Error(`getMundoAPI_Dice: can not GET`); }
+        else if (!isNumber(Response.free_remain_time)) { throw Error(`getMundoAPI_Dice: can not GET <free_remain_time>`); }
+        else {
+            return Response;
+        }
     }
 };
 
 /***/ }),
 
-/***/ 8474:
+/***/ 5169:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-const { isString } = __nccwpck_require__(7316);
+const { isString, isNumber } = __nccwpck_require__(7316);
 const fetch = __nccwpck_require__(2504);
 
 module.exports = async function (Token) {
@@ -134,8 +140,8 @@ module.exports = async function (Token) {
          */
         const Response = await fetch("https://smallpass.lol.garena.in.th/api/profile", requestOptions).then(async (response) => await response.json());
 
-        if (!Response) { throw Error(`getMundoAPI: can not GET`); }
-        else if (!Response.uid) { throw Error(`getMundoAPI: can not GET <uid>`); }
+        if (!Response) { throw Error(`getMundoAPI_Profile: can not GET`); }
+        else if (!isNumber(Response.free_remain_time)) { throw Error(`getMundoAPI_Profile: can not GET <free_remain_time>`); }
         else {
             return Response;
         }
@@ -178,44 +184,27 @@ module.exports = function (req, res, next) {
  * @typedef {import('../Types/mundoAPI_Profile.type').MundoAPI_ProfileResponse} MundoAPI_ProfileResponse
  */
 
-const getMundoProfile = __nccwpck_require__(8474);
-const { isString, isNull } = __nccwpck_require__(7316);
-const getMundoDice = __nccwpck_require__(8718);
+const { isString, isNull, isNumber } = __nccwpck_require__(7316);
+const getMundoAPI_Profile = __nccwpck_require__(5169);
+const getMundoAPI_Dice = __nccwpck_require__(3478);
 
 module.exports = class MundoAPI {
     /**
      * @type {string}
      */
     TokenId = null;
+
     /**
      * @type {string}
      */
     TokenStatus = 'offline';
 
-    /**
-     * @type {MundoAPI_ProfileResponse?}
-     */
-    #MundoDice_Profile = null;
-
-    /**
-     * @type {NodeJS.Timeout?}
-     */
-    #MundoDice_Interval = null;
-
-    #MundoDice_Next_Number = null;
-
-    /**
-     * @type {number?}
-     */
-    TokenNext = null;
+    TokenNext;
 
     /**
      * @type {[string]}
      */
     TokenLogs = [];
-
-    #MundoDice_ErrorCount = 0;
-    get MundoDice_ErrorCount() { return this.#MundoDice_ErrorCount; }
 
     constructor(Token) {
         if (!isString(Token)) { throw Error(`Mundo API <Token> must be String`); }
@@ -226,128 +215,138 @@ module.exports = class MundoAPI {
                 get: () => this.#getTokenNext()
             });
 
-            this.TokenLogs.push(`Date: ${new Date().toISOString()} | Result: DICE-CREATE`);
+            this.#logging(`Result: DICE-INIT-OK`);
         }
     }
 
+    #logging(input) {
+        const output = `Date: ${new Date().toISOString()} | ` + input;
+        console.log(output + ` | TokenId: ${this.TokenId}`);
+        this.TokenLogs.push(output);
+    }
+
+    async createTokenDice() {
+        try {
+            if (this.#TokenProfile) {
+                this.removeTokenDice();
+            }
+            await this.#setTokenProfile();
+            await this.#setIntervalTokenNext();
+            await this.#setIntervalTokenDice();
+            this.#logging(`Result: DICE-CREATE-TOKEN-OK`);
+        } catch (error) {
+            console.error(error);
+            this.removeTokenDice();
+            this.#logging(`Result: DICE-CREATE-TOKEN-ERROR`);
+        }
+    }
+    removeTokenDice() {
+        this.#clearInvervalTokenDice();
+        this.#clearInvervalTokenNext();
+        this.#clearTokenProfile();
+        this.#logging(`Result: DICE-REMOVE-TOKEN-OK`);
+    }
+
+    /**
+     * @type {MundoAPI_ProfileResponse?}
+     */
+    #TokenProfile = null;
+    async #setTokenProfile() {
+        const getProfile = await getMundoAPI_Profile(this.TokenId);
+        this.#TokenProfile = getProfile;
+        return getProfile;
+    }
+    #clearTokenProfile() {
+        this.#TokenProfile = null;
+    }
+
+    /**
+     * @type {NodeJS.Timeout?}
+     */
+    #IntervalTokenNext = null;
+    /**
+     * @type {number?}
+     */
+    #TokenNext = null;
+    async #setIntervalTokenNext() {
+        if (isNumber(this.#TokenProfile.free_remain_time)) {
+            this.#TokenNext = this.#TokenProfile.free_remain_time;
+            this.#IntervalTokenNext = setInterval(() => {
+                if (isNumber(this.#TokenNext)) {
+                    if (this.#TokenNext > 0) {
+                        this.#TokenNext--;
+                    }
+                    else {
+                        this.#TokenNext = 0;
+                    }
+                }
+                else {
+                    this.#TokenNext = null;
+                }
+            }, 1000);
+        }
+        else {
+            this.#clearInvervalTokenNext();
+        }
+        this.#logging(`Result: DICE-CREATE-NEXT-OK`);
+    }
+    #clearInvervalTokenNext() {
+        if (this.#IntervalTokenNext) {
+            clearInterval(this.#IntervalTokenNext);
+        }
+        this.#IntervalTokenNext = null;
+        this.#TokenNext = null;
+        this.#logging(`Result: DICE-REMOVE-NEXT-OK`);
+    }
     #getTokenNext() {
-        if (isNull(this.#MundoDice_Next_Number)) {
+        if (isNull(this.#TokenNext)) {
             return null;
         }
         else {
-            return `${new Date(this.#MundoDice_Next_Number * 1000).toISOString().substr(11, 8)}`;
+            return `${new Date(this.#TokenNext * 1000).toISOString().substr(11, 8)}`;
         }
     }
 
     /**
      * @type {NodeJS.Timeout?}
      */
-    #intervalTokenNext;
-    #setTokenNext() {
-        this.#clearTokenNext();
-        this.#intervalTokenNext = setInterval(() => {
-            if (!isNull(this.#MundoDice_Next_Number)) {
-                if ((this.#MundoDice_Next_Number - 1) > 0) {
-                    this.#MundoDice_Next_Number = this.#MundoDice_Next_Number - 1;
-                }
-                else {
-                    this.#MundoDice_Next_Number = 0;
-                }
+    #IntervalTokenDice = null;
+    #IntervalTokenDice_Retry = 1;
+    async #setIntervalTokenDice() {
+        if (isNumber(this.#TokenProfile.free_remain_time) || this.#IntervalTokenDice_Retry > 3) {
+            const doDice = async () => {
+                await getMundoAPI_Dice(this.TokenId)
+                    .then(r => this.#logging(`Result: DICE-DO-DODICE-OK`))
+                    .catch(async (e) => {
+                        this.#logging(`Result: DICE-DO-DODICE-ERROR`);
+                        this.#logging(`Result: DICE-DO-DODICE-ERROR-RETRY${this.#IntervalTokenDice_Retry}`);
+                        this.#IntervalTokenDice_Retry++;
+                        setTimeout(async () => {
+                            await this.createTokenDice();
+                        }, 5000);
+                    });
             }
-        }, 1000);
-    }
-
-    #clearTokenNext() {
-        if (this.#intervalTokenNext) {
-            clearInterval(this.#intervalTokenNext);
-            this.#intervalTokenNext = null;
-        }
-    }
-
-    #MundoProfile_ErrorMax = 3;
-    get MundoProfile_ErrorMax() { return this.#MundoProfile_ErrorMax; }
-    
-    #MundoProfile_ErrorCount = 1;
-    get MundoProfile_ErrorCount() { return this.#MundoProfile_ErrorCount; }
-
-    async setMundoProfile() {
-        const getPorfile = await getMundoProfile(this.TokenId)
-            .then(r => {
-                this.TokenLogs.push(`Date: ${new Date().toISOString()} | Result: PORFILE-OK`);
-                return r;
-            })
-            .catch(e => {
-                this.TokenLogs.push(`Date: ${new Date().toISOString()} | Result: PORFILE-ERROR`);
-            });
-        if (!getPorfile) {
-            if (this.#MundoProfile_ErrorCount > this.#MundoProfile_ErrorMax) {
-                this.TokenLogs.push(`Date: ${new Date().toISOString()} | Result: PORFILE-ERROR-RETRY-MAX`);
-                this.clearMundoFreeDice();
+            if (this.#TokenProfile.free_remain_time === 0) {
+                await doDice();
             }
             else {
-                this.TokenLogs.push(`Date: ${new Date().toISOString()} | Result: PORFILE-RETRY-${this.#MundoProfile_ErrorCount}`);
-                this.#MundoProfile_ErrorCount++;
-                setTimeout(async () => {
-                    await this.setMundoProfile();
-                }, 5000);
+                this.#IntervalTokenDice = setInterval(async () => {
+                    await doDice();
+                }, this.#TokenProfile.free_remain_time * 1000);
             }
+            this.#logging(`Result: DICE-CREATE-DODICE-OK`);
         }
         else {
-            this.#MundoProfile_ErrorCount = 1;
-            this.#MundoDice_Profile = getPorfile;
-            this.#MundoDice_Next_Number = this.#MundoDice_Profile.free_remain_time;
-            this.#setTokenNext();
-            return this.#MundoDice_Profile;
+            this.#clearInvervalTokenDice();
         }
     }
-
-    async setMundoFreeDice() {
-        if (this.#MundoDice_Interval) {
-            this.clearMundoFreeDice();
+    #clearInvervalTokenDice() {
+        if (this.#IntervalTokenDice) {
+            clearInterval(this.#IntervalTokenDice);
         }
-        await this.setMundoProfile();
-
-        this.#MundoDice_Interval = setInterval(async () => {
-            await this.activeMundoFreeDice();
-            await this.setMundoFreeDice().catch(() => { });
-        }, this.#MundoDice_Profile.free_remain_time * 1000);
-
-        this.TokenStatus = 'online';
-        this.TokenLogs.push(`Date: ${new Date().toISOString()} | Result: DICE-START`);
-    }
-
-    clearMundoFreeDice() {
-        if (this.#MundoDice_Interval) {
-            clearTimeout(this.#MundoDice_Interval);
-        }
-        this.#MundoDice_Interval = null;
-
-        this.#clearTokenNext();
-
-        this.#MundoDice_Profile = null;
-
-        this.TokenStatus = 'offline';
-        this.TokenLogs.push(`Date: ${new Date().toISOString()} | Result: DICE-STOP`);
-    }
-
-    async activeMundoFreeDice() {
-        if (this.#MundoDice_ErrorCount > 3) {
-            this.clearMundoFreeDice();
-            return false;
-        }
-        else {
-            return await getMundoDice()
-            .then(r => {
-                this.TokenLogs.push(`Date: ${new Date().toISOString()} | Result: DICE-OK`);
-                this.#MundoDice_ErrorCount = 0;
-                return true;
-            })
-            .catch(e => {
-                this.TokenLogs.push(`Date: ${new Date().toISOString()} | Result: DICE-ERROR`);
-                this.#MundoDice_ErrorCount++;
-                return false;
-            });
-        }
+        this.#IntervalTokenDice = null;
+        this.#IntervalTokenDice_Retry = 0;
+        this.#logging(`Result: DICE-REMOVE-DODICE-OK`);
     }
 }
 
@@ -44591,11 +44590,10 @@ app.get('/create',
     middlewareRequestToken,
     async function (req, res) {
         try {
-            const { token, start } = req.query;
-            if (SessionMundo.filter(where => (where.TokenId === token)).length === 0) {
+            const { token } = req.query;
+            if (SessionMundo.findIndex(where => (where.TokenId === token)) === -1) {
                 const reqMundo = new MundoAPI(token);
-                await reqMundo.setMundoProfile();
-                if (start === 'true') { await reqMundo.setMundoFreeDice(); }
+                await reqMundo.createTokenDice();
                 SessionMundo.push(reqMundo);
                 res.status(201).json({ result: 'ok', token: token, status: 'created' });
                 return;
@@ -44616,57 +44614,13 @@ app.get('/status',
     middlewareRequestToken,
     function (req, res) {
         const { token } = req.query;
-        const findResult = SessionMundo.filter(where => (where.TokenId === token));
-        if (findResult.length === 0) {
+        const findResult = SessionMundo.findIndex(where => (where.TokenId === token));
+        if (findResult === -1) {
             res.status(200).json({ result: 'error', error: "ERROR_TOKEN_NOTFOUND" });
             return;
         }
         else {
-            res.status(200).json(SessionMundo[0]).end();
-            return;
-        }
-    }
-);
-
-app.get('/start',
-    middlewareRequestToken,
-    async function (req, res) {
-        try {
-            const { token } = req.query;
-            const findResult = SessionMundo.filter(where => (where.TokenId === token));
-            if (findResult.length === 0) {
-                res.status(200).json({ result: 'error', error: "ERROR_TOKEN_NOTFOUND" });
-                return;
-            }
-            else {
-                await SessionMundo[0].setMundoFreeDice();
-                res.status(200).json({ result: 'ok', token: token, status: 'started' }).end();
-                return;
-            }
-        } catch (error) {
-            res.status(422).json({ result: 'error', error: 'ERROR_UNPROCESSENTITY' });
-            return;
-        }
-    }
-);
-
-app.get('/stop',
-    middlewareRequestToken,
-    function (req, res) {
-        try {
-            const { token } = req.query;
-            const findResult = SessionMundo.filter(where => (where.TokenId === token));
-            if (findResult.length === 0) {
-                res.status(200).json({ result: 'error', error: "ERROR_TOKEN_NOTFOUND" });
-                return;
-            }
-            else {
-                SessionMundo[0].clearMundoFreeDice();
-                res.status(200).json({ result: 'ok', token: token, status: 'stoped' }).end();
-                return;
-            }
-        } catch (error) {
-            res.status(422).json({ result: 'error', error: 'ERROR_UNPROCESSENTITY' });
+            res.status(200).json(SessionMundo[findResult]).end();
             return;
         }
     }
@@ -44683,7 +44637,7 @@ app.get('/delete',
                 return;
             }
             else {
-                SessionMundo[findResult].clearMundoFreeDice();
+                SessionMundo[findResult].createTokenDice();
                 SessionMundo.splice(findResult, 1);
                 res.status(200).json({ result: 'ok', token: token, status: 'deleted' }).end();
                 return;
